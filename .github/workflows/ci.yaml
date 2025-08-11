@@ -37,8 +37,17 @@ jobs:
       - name: Lint code
         run: flake8 notebooks/ --max-line-length=88
         
-      - name: Validate cluster config
-        run: python -c "import yaml; yaml.safe_load(open('configs/clusters.yaml'))"
+      - name: Validate all cluster configs
+        run: |
+          for env in dev test uat prod; do
+            file="configs/${env}_clusters.yaml"
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing config file: $file"
+              exit 1
+            fi
+            python -c "import yaml,sys; yaml.safe_load(open('$file'))" || exit 1
+            echo "✅ $file is valid."
+          done
 
   deploy-dev:
     runs-on: ubuntu-latest

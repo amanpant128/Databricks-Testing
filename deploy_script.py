@@ -15,7 +15,7 @@ def run_cmd(cmd):
 
 def load_cluster_config(env):
     """Load cluster YAML config."""
-    config_path = f"configs/{env}_cluster.yaml"
+    config_path = f"configs/{env}_clusters.yaml"
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Cluster config not found: {config_path}")
     with open(config_path) as f:
