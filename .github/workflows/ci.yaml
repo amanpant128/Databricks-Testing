@@ -38,8 +38,7 @@ jobs:
         run: flake8 notebooks/ --max-line-length=88
         
       - name: Validate all cluster configs
-        run: |
-          python -c "import yaml; [yaml.safe_load(open(f'configs/{env}_clusters.yaml')) for env in ['dev', 'test', 'uat', 'prod']]"
+        run: python -c "import yaml; [yaml.safe_load(open(f'configs/{env}_clusters.yaml')) for env in ['dev', 'test', 'uat', 'prod']]"
 
 
   deploy-dev:
