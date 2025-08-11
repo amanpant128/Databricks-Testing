@@ -15,7 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -40,8 +45,13 @@ jobs:
     if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
     environment: dev
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
       - name: Set up Python and dependencies
         run: |
           pip install databricks-cli pyyaml
@@ -60,8 +70,13 @@ jobs:
     if: github.ref == 'refs/heads/test' && github.event_name == 'push'
     environment: test
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
       - name: Set up Python and dependencies
         run: |
           pip install databricks-cli pyyaml
@@ -75,8 +90,13 @@ jobs:
     if: github.ref == 'refs/heads/uat' && github.event_name == 'push'
     environment: uat
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
       - name: Set up Python and dependencies
         run: |
           pip install databricks-cli pyyaml
@@ -90,8 +110,13 @@ jobs:
     if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
     environment: prod
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
       - name: Set up Python and dependencies
         run: |
           pip install databricks-cli pyyaml
