@@ -11,7 +11,7 @@ env:
   DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
 
 jobs:
-    code-quality-checks:
+  code-quality-checks:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -38,8 +38,16 @@ jobs:
         run: flake8 notebooks/ --max-line-length=88
         
       - name: Validate all cluster configs
-        run: python -c "import yaml; [yaml.safe_load(open(f'configs/{env}_clusters.yaml')) for env in ['dev', 'test', 'uat', 'prod']]"
-
+        run: |
+          for env in dev test uat prod; do
+            file="configs/${env}_clusters.yaml"
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing config file: $file"
+              exit 1
+            fi
+            python -c "import yaml,sys; yaml.safe_load(open('$file'))" || exit 1
+            echo "✅ $file is valid."
+          done
 
   deploy-dev:
     runs-on: ubuntu-latest
@@ -119,9 +127,4 @@ jobs:
         run: git fetch origin main
 
       - name: Set up Python and dependencies
-        run: |
-          pip install databricks-cli pyyaml
-          
-      - name: Deploy cluster and notebooks
-        run: |
-          python deploy_script.py --env prod
+        run
