@@ -127,4 +127,9 @@ jobs:
         run: git fetch origin main
 
       - name: Set up Python and dependencies
-        run
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env prod
