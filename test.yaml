@@ -1,0 +1,106 @@
+name: Databricks CI/CD Pipeline
+
+on:
+  push:
+    branches: [dev, test, uat, prod]
+  pull_request:
+    branches: [dev, test, uat, prod]
+
+env:
+  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+jobs:
+  code-quality-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && !contains(github.event.head_commit.message, '[skip-ci]')
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          pip install flake8 black pytest databricks-cli pyyaml
+          
+      - name: Code formatting check
+        run: |
+          black --check automation_scripts/ func/ tests/ utils/ *.py
+          
+      - name: Lint code
+        run: |
+          flake8 automation_scripts/ func/ tests/ utils/ *.py --max-line-length=88
+          
+      - name: Validate cluster config
+        run: |
+          if [ -f configs/clusters.yaml ]; then
+            python -c "import yaml; yaml.safe_load(open('configs/clusters.yaml'))"
+          fi
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    environment: dev
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Configure Databricks CLI
+        run: |
+          echo "$DATABRICKS_HOST" > ~/.databricks_host
+          echo "$DATABRICKS_TOKEN" > ~/.databricks_token
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env dev
+          
+  deploy-test:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/test' && github.event_name == 'push'
+    environment: test
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env test
+
+  deploy-uat:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/uat' && github.event_name == 'push'
+    environment: uat
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env uat
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    environment: prod
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env prod
