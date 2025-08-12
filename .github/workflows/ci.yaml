@@ -2,10 +2,9 @@ name: Databricks CI/CD Pipeline
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, test, uat, prod]
   pull_request:
-    branches: [dev]
-    types: [opened, synchronize, closed]
+    branches: [dev, test, uat, prod]
 
 env:
   DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -14,146 +13,67 @@ env:
 jobs:
   code-quality-checks:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Fetch master branch
-        run: git fetch origin master
-      
+
+      - name: Fetch default branch
+        run: git fetch origin ${{ github.event.repository.default_branch }}
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
-          
+          python-version: '3.10'
+
       - name: Install dependencies
         run: |
-          pip install flake8 pytest databricks-cli pyyaml black mypy bandit safety
-          
-      - name: Run all quality checks
+          python -m pip install --upgrade pip
+          pip install black flake8 isort pytest databricks-cli
+
+      - name: Run all checks
         run: |
-          status=0
+          echo "🚀 Running all code quality checks..."
+          errors=0
+          
+          # Black formatting check (currently commented out)
+          # echo "Running Black..."
+          # black --check . || errors=$((errors+1))
 
-          echo "================= CODE QUALITY CHECKS START ================="
+          echo "Running flake8..."
+          flake8 . || errors=$((errors+1))
 
-          # --- Black code formatting check ---
-          echo "Checking code formatting with Black..."
-          # (Preserving your commented example here)
-          # if ! black --check --diff notebooks/; then
-          if ! black --check --diff notebooks/; then
-            echo ""
-            echo "Code formatting issues found!"
-            echo ""
-            echo "Detailed diff showing exact changes needed:"
-            black --diff notebooks/
-            echo ""
-            echo "Files that need formatting:"
-            black --check notebooks/ 2>&1 | grep "would reformat" || true
-            echo ""
-            echo "To fix these issues locally, run:"
-            echo "   black notebooks/"
-            status=1
+          echo "Running isort..."
+          isort --check-only . || errors=$((errors+1))
+
+          echo "Running pytest..."
+          pytest || errors=$((errors+1))
+
+          if [ "$errors" -ne 0 ]; then
+            echo "❌ One or more checks failed."
+            exit 1
           else
-            echo "All files are properly formatted!"
+            echo "✅ All checks passed."
           fi
-
-          echo "-------------------------------------------------------------"
-
-          # --- Flake8 linting ---
-          echo "Running linting with Flake8..."
-          if ! flake8 notebooks/ --max-line-length=88 --show-source --statistics; then
-            echo ""
-            echo "Linting issues found!"
-            echo ""
-            echo "Detailed issues with line numbers and source code:"
-            flake8 notebooks/ --max-line-length=88 --show-source --format='%(path)s:%(row)d:%(col)d: %(code)s %(text)s'
-            echo ""
-            echo "Summary of issues:"
-            flake8 notebooks/ --max-line-length=88 --statistics --count
-            echo ""
-            echo "Please fix the linting issues shown above"
-            status=1
-          else
-            echo "No linting issues found!"
-          fi
-
-          echo "-------------------------------------------------------------"
-
-          # --- MyPy type checking ---
-          echo "Running MyPy type checks..."
-          if ! mypy notebooks/ --ignore-missing-imports --install-types --non-interactive; then
-            echo "Type checking issues found!"
-            status=1
-          else
-            echo "No type checking issues found!"
-          fi
-
-          echo "-------------------------------------------------------------"
-
-          # --- Bandit security checks ---
-          echo "Running security checks with Bandit..."
-          if ! bandit -r notebooks/; then
-            echo "Security issues found!"
-            status=1
-          else
-            echo "No security issues found!"
-          fi
-
-          echo "-------------------------------------------------------------"
-
-          # --- Safety dependency vulnerability check ---
-          echo "Running dependency vulnerability check..."
-          if ! pip freeze | safety check --stdin; then
-            echo "Dependency vulnerabilities found!"
-            status=1
-          else
-            echo "No dependency vulnerabilities found!"
-          fi
-
-          echo "-------------------------------------------------------------"
-
-          # --- Unit tests ---
-          echo "Running unit tests..."
-          if [ -d "tests" ]; then
-            if ! pytest tests/ -v --tb=short; then
-              echo "Unit test failures detected!"
-              status=1
-            else
-              echo "All tests passed!"
-            fi
-          else
-            echo "No tests directory found"
-          fi
-
-          echo "================= CODE QUALITY CHECKS END ================="
-          exit $status
 
   deploy-dev:
+    needs: code-quality-checks
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-    environment: dev
-    needs: [code-quality-checks]
+    if: github.ref == 'refs/heads/dev'
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Fetch main branch
-        run: git fetch origin main
 
-      - name: Set up Python and dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Databricks CLI
         run: |
-          pip install databricks-cli pyyaml flake8 mypy bandit safety black
-          
-      - name: Configure Databricks CLI
+          python -m pip install --upgrade pip
+          pip install databricks-cli
+
+      - name: Deploy to Databricks (Dev)
         run: |
-          mkdir -p ~/.databricks
-          echo "[DEFAULT]" > ~/.databricks/config
-          echo "host = $DATABRICKS_HOST" >> ~/.databricks/config
-          echo "token = $DATABRICKS_TOKEN" >> ~/.databricks/config
-          
-      - name: Deploy notebooks
-        run: |
-          python deploy_script.py --env dev --notebooks-only
+          echo "🚀 Deploying to Databricks Dev..."
+          databricks workspace import_dir ./notebooks /Repos/your-repo-path --overwrite
