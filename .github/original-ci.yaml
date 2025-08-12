@@ -1,0 +1,169 @@
+name: Databricks CI/CD Pipeline
+
+on:
+  push:
+    branches: [dev, test, uat, prod]
+  pull_request:
+    branches: [dev, test, uat, prod]
+
+env:
+  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+jobs:
+  code-quality-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          pip install flake8 black pytest databricks-cli pyyaml
+          
+      - name: Code formatting check
+        run: black --check notebooks/
+        
+      - name: Lint code
+        run: flake8 notebooks/ --max-line-length=88
+        
+      - name: Validate all cluster configs
+        run: |
+          for env in dev test uat prod; do
+            file="configs/${env}_cluster.yaml"
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing config file: $file"
+              exit 1
+            fi
+            python -c "import yaml,sys; yaml.safe_load(open('$file'))" || exit 1
+            echo "✅ $file is valid."
+          done
+
+      - name: Validate all job configs
+        run: |
+          for env in dev test uat prod; do
+            file="jobs/${env}_job.yaml"
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing job config file: $file"
+              exit 1
+            fi
+            python -c "import yaml,sys; yaml.safe_load(open('$file'))" || exit 1
+            echo "✅ $file is valid."
+          done
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Configure Databricks CLI
+        run: |
+          mkdir -p ~/.databricks
+          echo "[DEFAULT]" > ~/.databricks/config
+          echo "host = $DATABRICKS_HOST" >> ~/.databricks/config
+          echo "token = $DATABRICKS_TOKEN" >> ~/.databricks/config
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env dev
+
+      - name: Create/Update Databricks Job
+        run: |
+          databricks jobs create --json-file jobs/dev_job.yaml || \
+          databricks jobs reset --job-id $(databricks jobs list --output JSON | jq -r '.jobs[] | select(.settings.name=="dev-job") | .job_id') --json-file jobs/dev_job.yaml
+
+  deploy-test:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/test' && github.event_name == 'push'
+    environment: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env test
+
+      - name: Create/Update Databricks Job
+        run: |
+          databricks jobs create --json-file jobs/test_job.yaml || \
+          databricks jobs reset --job-id $(databricks jobs list --output JSON | jq -r '.jobs[] | select(.settings.name=="test-job") | .job_id') --json-file jobs/test_job.yaml
+
+  deploy-uat:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/uat' && github.event_name == 'push'
+    environment: uat
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env uat
+
+      - name: Create/Update Databricks Job
+        run: |
+          databricks jobs create --json-file jobs/uat_job.yaml || \
+          databricks jobs reset --job-id $(databricks jobs list --output JSON | jq -r '.jobs[] | select(.settings.name=="uat-job") | .job_id') --json-file jobs/uat_job.yaml
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Set up Python and dependencies
+        run: |
+          pip install databricks-cli pyyaml
+          
+      - name: Deploy cluster and notebooks
+        run: |
+          python deploy_script.py --env prod
+
+      - name: Create/Update Databricks Job
+        run: |
+          databricks jobs create --json-file jobs/prod_job.yaml || \
+          databricks jobs reset --job-id $(databricks jobs list --output JSON | jq -r '.jobs[] | select(.settings.name=="prod-job") | .job_id') --json-file jobs/prod_job.yaml
