@@ -35,9 +35,9 @@ jobs:
           echo "🚀 Running all code quality checks..."
           errors=0
           
-          # Black formatting check (currently commented out)
-          # echo "Running Black..."
-          # black --check . || errors=$((errors+1))
+          Black formatting check (currently commented out)
+          echo "Running Black..."
+          black --check . || errors=$((errors+1))
 
           echo "Running flake8..."
           flake8 . || errors=$((errors+1))
