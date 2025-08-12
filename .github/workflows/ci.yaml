@@ -11,14 +11,15 @@ env:
   DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
 
 jobs:
-  code-quality-checks:
+  detect-issues:
     runs-on: ubuntu-latest
+    outputs:
+      has_errors: ${{ steps.checks.outputs.has_errors }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Fetch default branch
-        run: git fetch origin ${{ github.event.repository.default_branch }}
+        with:
+          persist-credentials: false  # We'll re-auth for push later
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,51 +29,55 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black flake8 isort pytest databricks-cli
+          pip install black flake8 isort pytest
 
       - name: Run all checks
+        id: checks
         run: |
-          echo "🚀 Running all code quality checks..."
+          echo "🚀 Detecting problems..."
           errors=0
           
-          echo "Running Black..."
           black --check . || errors=$((errors+1))
-
-          echo "Running flake8..."
           flake8 . || errors=$((errors+1))
-
-          echo "Running isort..."
           isort --check-only . || errors=$((errors+1))
-
-          echo "Running pytest..."
           pytest || errors=$((errors+1))
 
           if [ "$errors" -ne 0 ]; then
-            echo "❌ One or more checks failed."
-            exit 1
+            echo "has_errors=true" >> $GITHUB_OUTPUT
           else
-            echo "✅ All checks passed."
+            echo "has_errors=false" >> $GITHUB_OUTPUT
           fi
 
-  deploy-dev:
-    needs: code-quality-checks
+  fix-issues:
+    needs: detect-issues
+    if: needs.detect-issues.outputs.has_errors == 'true'
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/dev'
     steps:
-      - name: Checkout repository
+      - name: Checkout repository with push permissions
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Databricks CLI
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install databricks-cli
+          pip install black isort
 
-      - name: Deploy to Databricks (Dev)
+      - name: Auto-fix formatting
         run: |
-          echo "🚀 Deploying to Databricks Dev..."
-          databricks workspace import_dir ./notebooks /Repos/your-repo-path --overwrite
+          echo "🛠 Fixing formatting issues..."
+          black .
+          isort .
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Auto-format code [skip ci]" || echo "No changes to commit"
+          git push
