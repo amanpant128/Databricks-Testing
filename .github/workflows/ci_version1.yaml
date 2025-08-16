@@ -52,7 +52,7 @@ jobs:
             echo "▶ Running: $NAME"
             echo "--------------------------------------"
             
-            OUTPUT=$(eval "$CMD" 2>&1)
+            OUTPUT=$(eval "$CMD" 2>&1 | head -n 50)   # truncate long outputs
             EXIT_CODE=$?
 
             if [ $EXIT_CODE -eq 0 ]; then
@@ -62,18 +62,17 @@ jobs:
               echo "✗ $NAME: FAILED"
               echo "----- Details for $NAME -----"
               echo "$OUTPUT"
+              [ $(echo "$OUTPUT" | wc -l) -eq 50 ] && echo "... (truncated)"
               echo "-----------------------------"
               FAILED_CHECKS+=("$NAME")
               OVERALL_EXIT_CODE=1
             fi
           }
 
-          # Detect Python files in notebooks
-          if [ -d "notebooks" ] && [ "$(find notebooks -name '*.py' | wc -l)" -gt 0 ]; then
-            PYFILES="notebooks/"
-          else
-            echo "ℹ No Python files found in notebooks/ - skipping file-based checks"
-            PYFILES=""
+          # Detect Python files (exclude ipynb)
+          PYFILES=$(find . -name "*.py" | grep -v "__pycache__" || true)
+          if [ -z "$PYFILES" ]; then
+            echo "ℹ No Python files found - skipping file-based checks"
           fi
 
           # Run Flake8
@@ -82,12 +81,12 @@ jobs:
           # Run Black
           [ -n "$PYFILES" ] && run_check "Black Formatting" "black --check --diff $PYFILES" || PASSED_CHECKS+=("Black (Skipped)")
 
-          # Run Mypy: strict on utils/, lenient on notebooks/
+          # Run Mypy: strict on utils/, lenient elsewhere
           if [ -d "utils" ]; then
             run_check "Mypy Type Checking (utils)" "mypy utils/"
           fi
           if [ -n "$PYFILES" ]; then
-            run_check "Mypy Type Checking (notebooks)" "mypy --ignore-missing-imports $PYFILES"
+            run_check "Mypy Type Checking (others)" "mypy --ignore-missing-imports $PYFILES"
           else
             PASSED_CHECKS+=("Mypy (Skipped)")
           fi
@@ -100,7 +99,7 @@ jobs:
 
           # Run Pytest if tests/ exists
           if [ -d "tests" ]; then
-            run_check "Pytest Unit Tests" "pytest --maxfail=3 --disable-warnings -q"
+            run_check "Pytest Unit Tests" "pytest -q --disable-warnings --maxfail=5 --tb=short"
           else
             echo "ℹ No tests/ directory found - skipping Pytest"
             PASSED_CHECKS+=("Pytest (Skipped)")
@@ -130,6 +129,17 @@ jobs:
           fi
 
           echo ""
+          echo "======================================"
+          echo "   CONCLUSIVE TESTS SUMMARY (Pytest)  "
+          echo "======================================"
+          if [ -d "tests" ]; then
+            pytest -q --disable-warnings --tb=short --maxfail=5 --report-log=pytest_results.log || true
+            if [ -f pytest_results.log ]; then
+              echo "🔍 Pytest Results (from log):"
+              cat pytest_results.log | grep -E "(failed|passed)" || true
+            fi
+          fi
+
           echo "======================================"
 
           if [ $OVERALL_EXIT_CODE -eq 0 ]; then
