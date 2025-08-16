@@ -18,7 +18,6 @@ try:
     
     # Create DataFrame directly from list of dicts
     df = spark.createDataFrame(data)
-    print("Aman")
     # df.show(5, truncate=False)
     df.display()
     
