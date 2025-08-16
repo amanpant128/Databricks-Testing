@@ -32,7 +32,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          pip install flake8 pytest black mypy bandit radon pip-audit pyspark-stubs
+          pip install flake8 pytest black mypy bandit radon black[jupyter] pip-audit pyspark-stubs
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           fi
