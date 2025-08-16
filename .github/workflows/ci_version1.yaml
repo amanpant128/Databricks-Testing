@@ -32,7 +32,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          pip install flake8 pytest black mypy bandit radon black[jupyter] pip-audit pyspark-stubs
+          pip install flake8 pytest black mypy bandit radon pip-audit pyspark-stubs
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           fi
@@ -48,11 +48,21 @@ jobs:
           run_check () {
             NAME=$1
             CMD=$2
-            if eval "$CMD"; then
+            echo "--------------------------------------"
+            echo "▶ Running: $NAME"
+            echo "--------------------------------------"
+            
+            OUTPUT=$(eval "$CMD" 2>&1)
+            EXIT_CODE=$?
+
+            if [ $EXIT_CODE -eq 0 ]; then
               echo "✓ $NAME: PASSED"
               PASSED_CHECKS+=("$NAME")
             else
               echo "✗ $NAME: FAILED"
+              echo "----- Details for $NAME -----"
+              echo "$OUTPUT"
+              echo "-----------------------------"
               FAILED_CHECKS+=("$NAME")
               OVERALL_EXIT_CODE=1
             fi
