@@ -1,0 +1,3 @@
+[radon]
+cc_min = "B"  # Minimum acceptable complexity (A best, F worst)
+exclude = ["tests", "docs", ".venv", ".env"]

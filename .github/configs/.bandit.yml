@@ -1,0 +1,3 @@
+skips: []
+tests: []
+exclude_dirs: [.git, __pycache__, build, dist, .venv, .env]

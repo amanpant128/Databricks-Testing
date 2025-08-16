@@ -1,0 +1,12 @@
+[flake8]
+max-line-length = 100
+
+# Only check for these categories:
+# E = pycodestyle errors, W = warnings, F = pyflakes, C90 = complexity
+select = E,F,W,C90
+
+# Rules to ignore (to reduce noise or handled by Black)
+extend-ignore = E203,W503,E266,E501,E731
+
+# Skip common dirs and build artifacts
+exclude = .git,__pycache__,build,dist,.venv,.env,.eggs,*.egg-info

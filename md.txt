@@ -1,0 +1,10 @@
+Flake8 → linting
+Black → formatting check
+Mypy → strict on utils/, lenient on Spark notebooks
+Bandit → security scan
+Radon → cyclomatic complexity
+Pytest → unit tests (if tests/ exists)
+
+Pip-audit → dependency vulnerability check: pip-audit is a Python security tool that scans your installed dependencies (or requirements.txt) for known vulnerabilities (CVEs). It’s maintained by the Python Packaging Authority (PyPA) — the same folks who manage pip — so it’s the “official” way of checking Python package security.
+
+Summary output → shows passed/failed checks clearly
