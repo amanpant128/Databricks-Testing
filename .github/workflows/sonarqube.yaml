@@ -2,9 +2,9 @@ name: Databricks CI Sonarqube
 
 on:
   push:
-    branches: [dev, test, uat]
+    branches: [dev, test, uat, main]
   pull_request:
-    branches: [dev, test, uat]
+    branches: [dev, test, uat, main]
     types: [opened, synchronize, reopened]
 
 jobs:
