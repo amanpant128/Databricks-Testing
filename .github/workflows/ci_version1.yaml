@@ -1,151 +1,21 @@
-name: Databricks CI Pipeline
+name: Databricks CI Sonarqube checks
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, test, uat]
   pull_request:
-    branches: [dev]
-    types: [opened, synchronize]
+    branches: [dev, test, uat]
+    types: [opened, synchronize, reopened]
 
 jobs:
-  code-quality-checks:
+  sonarqube:
+    name: SonarQube Code Quality Checks
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
         with:
-          python-version: '3.10'
-          
-      - name: Copy configuration files
-        run: |
-          echo "Copying configuration files from .github/configs/ to project root..."
-          cp .github/configs/.flake8 .flake8
-          cp .github/configs/.bandit.yml .bandit.yml
-          cp .github/configs/pyproject.toml pyproject.toml || true
-          cp .github/configs/mypy.ini mypy.ini || true
-          cp .github/configs/radon.toml radon.toml || true
-          echo "✓ Config files ready"
-          
-      - name: Install dependencies
-        run: |
-          pip install flake8 pytest black mypy bandit radon pip-audit pyspark-stubs
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-          
-      - name: Run Code Quality Checks
-        run: |
-          echo "=== Running Code Quality Checks ==="
-
-          OVERALL_EXIT_CODE=0
-          PASSED_CHECKS=()
-          FAILED_CHECKS=()
-
-          run_check () {
-            NAME=$1
-            CMD=$2
-            echo "--------------------------------------"
-            echo "▶ Running: $NAME"
-            echo "--------------------------------------"
-            
-            OUTPUT=$(eval "$CMD" 2>&1 | head -n 50)   # truncate long outputs
-            EXIT_CODE=$?
-
-            if [ $EXIT_CODE -eq 0 ]; then
-              echo "✓ $NAME: PASSED"
-              PASSED_CHECKS+=("$NAME")
-            else
-              echo "✗ $NAME: FAILED"
-              echo "----- Details for $NAME -----"
-              echo "$OUTPUT"
-              [ $(echo "$OUTPUT" | wc -l) -eq 50 ] && echo "... (truncated)"
-              echo "-----------------------------"
-              FAILED_CHECKS+=("$NAME")
-              OVERALL_EXIT_CODE=1
-            fi
-          }
-
-          # Detect Python files (exclude ipynb)
-          PYFILES=$(find . -name "*.py" | grep -v "__pycache__" || true)
-          if [ -z "$PYFILES" ]; then
-            echo "ℹ No Python files found - skipping file-based checks"
-          fi
-
-          # Run Flake8
-          [ -n "$PYFILES" ] && run_check "Flake8 Linting" "flake8 $PYFILES" || PASSED_CHECKS+=("Flake8 (Skipped)")
-
-          # Run Black
-          [ -n "$PYFILES" ] && run_check "Black Formatting" "black --check --diff $PYFILES" || PASSED_CHECKS+=("Black (Skipped)")
-
-          # Run Mypy: strict on utils/, lenient elsewhere
-          if [ -d "utils" ]; then
-            run_check "Mypy Type Checking (utils)" "mypy utils/"
-          fi
-          if [ -n "$PYFILES" ]; then
-            run_check "Mypy Type Checking (others)" "mypy --ignore-missing-imports $PYFILES"
-          else
-            PASSED_CHECKS+=("Mypy (Skipped)")
-          fi
-
-          # Run Bandit
-          [ -n "$PYFILES" ] && run_check "Bandit Security Scan" "bandit -r $PYFILES -c .bandit.yml" || PASSED_CHECKS+=("Bandit (Skipped)")
-
-          # Run Radon Cyclomatic Complexity
-          [ -n "$PYFILES" ] && run_check "Radon Complexity" "radon cc $PYFILES -a -nc" || PASSED_CHECKS+=("Radon (Skipped)")
-
-          # Run Pytest if tests/ exists
-          if [ -d "tests" ]; then
-            run_check "Pytest Unit Tests" "pytest -q --disable-warnings --maxfail=5 --tb=short"
-          else
-            echo "ℹ No tests/ directory found - skipping Pytest"
-            PASSED_CHECKS+=("Pytest (Skipped)")
-          fi
-
-          # Run Dependency Security Audit
-          run_check "Dependency Audit" "pip-audit"
-
-          echo ""
-          echo "======================================"
-          echo "         QUALITY CHECKS SUMMARY       "
-          echo "======================================"
-
-          if [ ${#PASSED_CHECKS[@]} -gt 0 ]; then
-            echo "✅ PASSED CHECKS (${#PASSED_CHECKS[@]}):"
-            for check in "${PASSED_CHECKS[@]}"; do
-              echo "   ✓ $check"
-            done
-          fi
-
-          if [ ${#FAILED_CHECKS[@]} -gt 0 ]; then
-            echo ""
-            echo "❌ FAILED CHECKS (${#FAILED_CHECKS[@]}):"
-            for check in "${FAILED_CHECKS[@]}"; do
-              echo "   ✗ $check"
-            done
-          fi
-
-          echo ""
-          echo "======================================"
-          echo "   CONCLUSIVE TESTS SUMMARY (Pytest)  "
-          echo "======================================"
-          if [ -d "tests" ]; then
-            pytest -q --disable-warnings --tb=short --maxfail=5 --report-log=pytest_results.log || true
-            if [ -f pytest_results.log ]; then
-              echo "🔍 Pytest Results (from log):"
-              cat pytest_results.log | grep -E "(failed|passed)" || true
-            fi
-          fi
-
-          echo "======================================"
-
-          if [ $OVERALL_EXIT_CODE -eq 0 ]; then
-            echo "🎉 ALL QUALITY CHECKS PASSED!"
-            exit 0
-          else
-            echo "❌ SOME QUALITY CHECKS FAILED!"
-            exit 1
-          fi
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
