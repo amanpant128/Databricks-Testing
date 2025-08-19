@@ -11,7 +11,7 @@ import unittest
 # COMMAND ----------
 
 # Initialize Spark session
-spark = SparkSession.builder.appName("SonarQubeChecksDemo").getOrCreate()
+spark = SparkSession.builder.master("local[*]").appName("SonarQubeChecksDemo").getOrCreate()
 
 # COMMAND ----------
 
