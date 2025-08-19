@@ -1,4 +1,4 @@
-name: Databricks CI Sonarqube checks
+name: Databricks CI Sonarqube
 
 on:
   push:
