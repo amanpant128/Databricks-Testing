@@ -17,7 +17,7 @@ try:
     response.raise_for_status()
     data = response.json()  # This is already a list of dicts
     
-    # Create DataFrame directly from list of dicts
+    # Create DataFrame directly from list of dictionary
     df = spark.createDataFrame(data)
     # df.show(5, truncate=False)
     df.display()
